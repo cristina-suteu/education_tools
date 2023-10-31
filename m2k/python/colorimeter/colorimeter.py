@@ -108,7 +108,8 @@ def FFT(t, y):
     Y = abs(np.fft.fft(y))[:k]
     return f, Y
 
-def lowpass(x, alpha=0.001):
+
+def lowpass(x, alpha=0.01):
     data = [x[0]]
     for a in x[1:]:
         data.append(data[-1] + (alpha*(a-data[-1])))
@@ -174,7 +175,7 @@ def main():
 
     # Enable and configure M2K Digital pins
     # For our board this is range(13,16)
-    for i in range(3):
+    for i in range(13, 16):
         digital.setDirection(i, libm2k.DIO_OUTPUT)
         digital.enableChannel(i, True)
     digital.setCyclic(True)
