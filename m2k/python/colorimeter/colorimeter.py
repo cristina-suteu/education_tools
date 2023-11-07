@@ -136,26 +136,23 @@ def main():
     # We will use these to drive the RGB LED
     # Each signal will turn the LED either Red, Blue or Green
 
-    red_freq = 50000  # in Hz
-    green_freq = 60000  # in Hz
-    blue_freq = 70000  # in Hz
+    red_freq = 500  # in Hz
+    green_freq = 600  # in Hz
+    blue_freq = 700  # in Hz
 
     # Do we want to play around with phase, offset and duty cycle ?
     square_dutycycle = 0.5
     square_offset = 0
     square_phase = 0
 
-    red_sample_rate = get_optimal_sample_rate_pg(red_freq)
-    sig = square_buffer_generator(red_freq, square_phase, red_sample_rate, square_dutycycle)
-    red_buf = square_wave_digital(sig, pg_channels[0])
+    sig = square_buffer_generator(red_freq, square_phase, pg_available_sample_rates[1], square_dutycycle)
+    red_buf = square_wave_digital(sig, pg_channels[13])
 
-    green_sample_rate = get_optimal_sample_rate_pg(green_freq)
-    sig = square_buffer_generator(green_freq, square_phase, green_sample_rate, square_dutycycle)
-    green_buf = square_wave_digital(sig, pg_channels[1])
+    sig = square_buffer_generator(green_freq, square_phase, pg_available_sample_rates[1], square_dutycycle)
+    green_buf = square_wave_digital(sig, pg_channels[14])
 
-    blue_sample_rate = get_optimal_sample_rate_pg(blue_freq)
-    sig = square_buffer_generator(blue_freq, square_phase, blue_sample_rate, square_dutycycle)
-    blue_buf = square_wave_digital(sig, pg_channels[2])
+    sig = square_buffer_generator(blue_freq, square_phase, pg_available_sample_rates[1], square_dutycycle)
+    blue_buf = square_wave_digital(sig, pg_channels[15])
 
     # Make sure all buffers are the same length
     # Calculate The Least Common Multiple(LCM) between the lengths of the 3 buffers
@@ -167,11 +164,7 @@ def main():
     green_buf = extend_buffer(green_buf, buffer_length)
 
     # Find and set optimal sample rate for the 3 buffers, using LCM
-    optimal_sample_rate = lcm(red_sample_rate, blue_sample_rate, green_sample_rate)
-    if optimal_sample_rate > pg_max_rate:
-        digital.setSampleRateOut(pg_max_rate)
-    else:
-        digital.setSampleRateOut(optimal_sample_rate)
+    digital.setSampleRateOut(pg_available_sample_rates[1])
 
     # Enable and configure M2K Digital pins
     # For our board this is range(13,16)
@@ -190,25 +183,22 @@ def main():
     # Configure Analog Inputs
     adc.enableChannel(0, True)
     adc.enableChannel(1, True)
-    if optimal_sample_rate > pg_max_rate:
-        adc.setSampleRate(pg_max_rate)
-        optimal_sample_rate = pg_max_rate
-    else:
-        adc.setSampleRate(optimal_sample_rate)
+
+    adc.setSampleRate(pg_available_sample_rates[1])
     adc.setRange(0, -1, 1)
     adc.setRange(1, -1, 1)
     # Get data from M2K
-    data = adc.getSamples(pow(2, 16))  # power of 2 samples
-    measured_data = data[0]
-    reference_data = data[1]
+    data = adc.getSamples(pow(2, 10))  # power of 2 samples
+    measured_data = data[1]
+    reference_data = data[0]
 
     # Fun Stuff
     balanced_signal = measured_data - np.mean(measured_data)
     windowed_signal = balanced_signal * np.blackman(len(balanced_signal))
-    windowed_signal = lowpass(windowed_signal)
+    #windowed_signal = lowpass(windowed_signal)
     measured_data_fft = np.fft.fft(windowed_signal)
     # d - time step, inverse of the sampling rate
-    freq = np.fft.fftfreq(len(balanced_signal), d=1/optimal_sample_rate)
+    freq = np.fft.fftfreq(len(balanced_signal), d=1/pg_available_sample_rates[1])
 
     # we do fft shift because fft function plots positive frequencies first
     # without fft shift we get a line connecting the last point of the positive
@@ -222,12 +212,12 @@ def main():
     windowed_ref = balanced_ref * np.blackman(len(balanced_ref))
     ref_data_fft = np.fft.fft(windowed_ref)
     # d - time step, inverse of the sampling rate
-    ref_freq = np.fft.fftfreq(len(balanced_ref), d=1/optimal_sample_rate)
+    ref_freq = np.fft.fftfreq(len(balanced_ref), d=1/pg_available_sample_rates[1])
     ref_data_fft = np.fft.fftshift(ref_data_fft)
     ref_freq = np.fft.fftshift(ref_freq)
 
-    plt.plot(ref_freq[N // 2:33000], 2.0 / N * np.abs(ref_data_fft[N // 2:33000]))
-    plt.plot(freq[N // 2:33000], 2.0 / N * np.abs(measured_data_fft[N // 2:33000]))
+    plt.plot(ref_freq[N // 2:], 2.0 / N * np.abs(ref_data_fft[N // 2:]))
+    plt.plot(freq[N // 2:], 2.0 / N * np.abs(measured_data_fft[N // 2:]))
     plt.show()
 
     #500 , 600 , 700 Hz
