@@ -100,21 +100,6 @@ def extend_buffer(buf, desired_length):
     return buf
 
 
-def FFT(t, y):
-    n = len(t)
-    delta = (max(t) - min(t)) / (n-1)
-    k = int(n/2)
-    f = np.arange(k) / (n* delta)
-    Y = abs(np.fft.fft(y))[:k]
-    return f, Y
-
-
-def lowpass(x, alpha=0.01):
-    data = [x[0]]
-    for a in x[1:]:
-        data.append(data[-1] + (alpha*(a-data[-1])))
-    return np.array(data)
-
 def main():
     uri = "ip:192.168.2.1"
 
@@ -195,7 +180,6 @@ def main():
     # Fun Stuff
     balanced_signal = measured_data - np.mean(measured_data)
     windowed_signal = balanced_signal * np.blackman(len(balanced_signal))
-    #windowed_signal = lowpass(windowed_signal)
     measured_data_fft = np.fft.fft(windowed_signal)
     # d - time step, inverse of the sampling rate
     freq = np.fft.fftfreq(len(balanced_signal), d=1/pg_available_sample_rates[1])
@@ -216,11 +200,35 @@ def main():
     ref_data_fft = np.fft.fftshift(ref_data_fft)
     ref_freq = np.fft.fftshift(ref_freq)
 
-    plt.plot(ref_freq[N // 2:], 2.0 / N * np.abs(ref_data_fft[N // 2:]))
-    plt.plot(freq[N // 2:], 2.0 / N * np.abs(measured_data_fft[N // 2:]))
+    red_bins = np.where((freq <= red_freq+10) & (freq >= red_freq-10))
+    red_mag = (2.0 / N * np.abs(measured_data_fft[red_bins]))
+    red_ref = (2.0 / N * np.abs(ref_data_fft[red_bins]))
+
+    blue_bins = np.where((freq <= blue_freq + 10) & (freq >= blue_freq - 10))
+    blue_mag = (2.0 / N * np.abs(measured_data_fft[blue_bins]))
+    blue_ref = (2.0 / N * np.abs(ref_data_fft[blue_bins]))
+
+    green_bins = np.where((freq <= green_freq + 10) & (freq >= green_freq - 10))
+    green_mag = (2.0 / N * np.abs(measured_data_fft[green_bins]))
+    green_ref = (2.0 / N * np.abs(ref_data_fft[green_bins]))
+
+    red_abs = np.average(red_mag) / np.average(red_ref) * 100
+    print("RED ABS "+ str(red_abs)+"%\n")
+    blue_abs = np.average(blue_mag) / np.average(blue_ref) * 100
+    print("BLUE ABS " + str(blue_abs) + "%\n")
+    green_abs = np.average(green_mag) / np.average(green_ref) * 100
+    print("GREEN ABS " + str(green_abs) + "%\n")
+
+    fig, (ax1, ax2) = plt.subplots(nrows=2)
+    ax1.plot(ref_freq[N // 2:], 2.0 / N * np.abs(ref_data_fft[N // 2:]))
+    ax1.plot(freq[N // 2:], 2.0 / N * np.abs(measured_data_fft[N // 2:]))
+    bar_colors = ['tab:red', 'tab:green', 'tab:blue']
+    colors = ['red', 'green', 'blue']
+    absorbance = [red_abs, green_abs, blue_abs]
+    ax2.bar(colors, absorbance, color=bar_colors)
+    ax2.set_ylim(0, 100)
     plt.show()
 
-    #500 , 600 , 700 Hz
     libm2k.contextClose(ctx)
 
 
