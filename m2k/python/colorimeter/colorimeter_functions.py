@@ -14,6 +14,10 @@ pg_channels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
 min_nr_of_points = 10
 
+red_freq = 500  # in Hz
+green_freq = 600  # in Hz
+blue_freq = 700  # in Hz
+
 
 def get_best_ratio(ratio):
     max_it = max_buffer_size / ratio
@@ -100,30 +104,10 @@ def extend_buffer(buf, desired_length):
     return buf
 
 
-def main():
-    uri = "ip:192.168.2.1"
-
-    # Connect to M2K and Initialize ADC and Pattern Generator Objects
-    ctx = libm2k.m2kOpen(uri)
-    ctx.calibrateADC()
-    adc = ctx.getAnalogIn()
-    digital = ctx.getDigital()
-    ps = ctx.getPowerSupply()
-
-    # enable and set power supply pins to +5, -5 V to power up OP Amp
-    ps.reset()
-    ps.enableChannel(0, True)
-    ps.pushChannel(0, 5)
-    ps.enableChannel(1, True)
-    ps.pushChannel(1, -5)
-
+def create_digital_buffer():
     # Create 3 digital clock pattern buffers at 3 different frequencies
     # We will use these to drive the RGB LED
     # Each signal will turn the LED either Red, Blue or Green
-
-    red_freq = 500  # in Hz
-    green_freq = 600  # in Hz
-    blue_freq = 700  # in Hz
 
     # Do we want to play around with phase, offset and duty cycle ?
     square_dutycycle = 0.5
@@ -148,88 +132,67 @@ def main():
     blue_buf = extend_buffer(blue_buf, buffer_length)
     green_buf = extend_buffer(green_buf, buffer_length)
 
-    # Find and set optimal sample rate for the 3 buffers, using LCM
-    digital.setSampleRateOut(pg_available_sample_rates[1])
-
-    # Enable and configure M2K Digital pins
-    # For our board this is range(13,16)
-    for i in range(13, 16):
-        digital.setDirection(i, libm2k.DIO_OUTPUT)
-        digital.enableChannel(i, True)
-    digital.setCyclic(True)
-
     buffer = []
     if len(red_buf) == len(blue_buf) == len(green_buf):
         for i in range(len(red_buf)):
             bit = red_buf[i] + blue_buf[i] + green_buf[i]
             buffer.append(bit)
-    digital.push(buffer)
 
-    # Configure Analog Inputs
-    adc.enableChannel(0, True)
-    adc.enableChannel(1, True)
+    return buffer
 
-    adc.setSampleRate(pg_available_sample_rates[1])
-    adc.setRange(0, -1, 1)
-    adc.setRange(1, -1, 1)
-    # Get data from M2K
-    data = adc.getSamples(pow(2, 10))  # power of 2 samples
-    measured_data = data[1]
-    reference_data = data[0]
 
-    # Fun Stuff
-    balanced_signal = measured_data - np.mean(measured_data)
+def compute_fft(data):
+    # Remove DC offset
+    balanced_signal = data - np.mean(data)
+    # Apply window
     windowed_signal = balanced_signal * np.blackman(len(balanced_signal))
-    measured_data_fft = np.fft.fft(windowed_signal)
+    data_fft = np.fft.fft(windowed_signal)
+
+    # Compute FFT frequencies
     # d - time step, inverse of the sampling rate
-    freq = np.fft.fftfreq(len(balanced_signal), d=1/pg_available_sample_rates[1])
+    freq = np.fft.fftfreq(len(balanced_signal), d=1 / pg_available_sample_rates[1])
 
     # we do fft shift because fft function plots positive frequencies first
     # without fft shift we get a line connecting the last point of the positive
     # frequencies to the first point of the negative frequencies.
-    measured_data_fft = np.fft.fftshift(measured_data_fft)
+    data_fft = np.fft.fftshift(data_fft)
     freq = np.fft.fftshift(freq)
-    N = len(balanced_signal)
+    length = len(balanced_signal)
+    return freq, data_fft, length
 
-    # now for the reference data
-    balanced_ref = reference_data - np.mean(reference_data)
-    windowed_ref = balanced_ref * np.blackman(len(balanced_ref))
-    ref_data_fft = np.fft.fft(windowed_ref)
-    # d - time step, inverse of the sampling rate
-    ref_freq = np.fft.fftfreq(len(balanced_ref), d=1/pg_available_sample_rates[1])
-    ref_data_fft = np.fft.fftshift(ref_data_fft)
-    ref_freq = np.fft.fftshift(ref_freq)
+
+def light_absorbance(measured_data_fft, ref_data_fft, freq, length):
+
+    # Identify which FFT bins correspond to the frequencies used to drive the LED
+    # Compute Sample_Magnitude and Reference_Magnitude for each color
 
     red_bins = np.where((freq <= red_freq+10) & (freq >= red_freq-10))
-    red_mag = (2.0 / N * np.abs(measured_data_fft[red_bins]))
-    red_ref = (2.0 / N * np.abs(ref_data_fft[red_bins]))
+    red_mag = (2.0 / length * np.abs(measured_data_fft[red_bins]))
+    red_ref = (2.0 / length * np.abs(ref_data_fft[red_bins]))
 
     blue_bins = np.where((freq <= blue_freq + 10) & (freq >= blue_freq - 10))
-    blue_mag = (2.0 / N * np.abs(measured_data_fft[blue_bins]))
-    blue_ref = (2.0 / N * np.abs(ref_data_fft[blue_bins]))
+    blue_mag = (2.0 / length * np.abs(measured_data_fft[blue_bins]))
+    blue_ref = (2.0 / length * np.abs(ref_data_fft[blue_bins]))
 
     green_bins = np.where((freq <= green_freq + 10) & (freq >= green_freq - 10))
-    green_mag = (2.0 / N * np.abs(measured_data_fft[green_bins]))
-    green_ref = (2.0 / N * np.abs(ref_data_fft[green_bins]))
+    green_mag = (2.0 / length * np.abs(measured_data_fft[green_bins]))
+    green_ref = (2.0 / length * np.abs(ref_data_fft[green_bins]))
 
+    # Calculate Light Absorbance : Sample_Magnitude divided by Reference_Magnitude
     red_abs = np.average(red_mag) / np.average(red_ref) * 100
-    print("RED ABS "+ str(red_abs)+"%\n")
+
     blue_abs = np.average(blue_mag) / np.average(blue_ref) * 100
-    print("BLUE ABS " + str(blue_abs) + "%\n")
+
     green_abs = np.average(green_mag) / np.average(green_ref) * 100
-    print("GREEN ABS " + str(green_abs) + "%\n")
 
-    fig, (ax1, ax2) = plt.subplots(nrows=2)
-    ax1.plot(ref_freq[N // 2:], 2.0 / N * np.abs(ref_data_fft[N // 2:]))
-    ax1.plot(freq[N // 2:], 2.0 / N * np.abs(measured_data_fft[N // 2:]))
-    bar_colors = ['tab:red', 'tab:green', 'tab:blue']
-    colors = ['red', 'green', 'blue']
-    absorbance = [red_abs, green_abs, blue_abs]
-    ax2.bar(colors, absorbance, color=bar_colors)
-    ax2.set_ylim(0, 100)
-    plt.show()
-
-    libm2k.contextClose(ctx)
+    return red_abs, green_abs, blue_abs
 
 
-main()
+def set_powersupply(ps):
+    # enable and set power supply pins to +5, -5 V to power up OP Amp
+    ps.reset()
+    ps.enableChannel(0, True)
+    ps.pushChannel(0, 5)
+    ps.enableChannel(1, True)
+    ps.pushChannel(1, -5)
+
