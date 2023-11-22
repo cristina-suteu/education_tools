@@ -1,9 +1,6 @@
-import libm2k
 import math
 import copy
-import time
 import numpy as np
-import matplotlib.pyplot as plt
 
 max_buffer_size = 500000
 
@@ -124,7 +121,7 @@ def create_digital_buffer():
     blue_buf = square_wave_digital(sig, pg_channels[15])
 
     # Make sure all buffers are the same length
-    # Calculate The Least Common Multiple(LCM) between the lengths of the 3 buffers
+    # Find The Least Common Multiple(LCM) between the lengths of the 3 buffers
     # Extend each buffer until they are the length of LCM
 
     buffer_length = lcm(len(red_buf), len(green_buf), len(blue_buf))

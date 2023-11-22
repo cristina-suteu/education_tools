@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import colorimeter_functions
 
-
 uri = "ip:192.168.2.1"
 
 # Connect to M2K and Initialize ADC and Pattern Generator Objects
@@ -14,12 +13,7 @@ digital = ctx.getDigital()
 ps = ctx.getPowerSupply()
 
 # Enable and set power supply pins to +5, -5 V to power up OP Amp
-ps.reset()
-ps.enableChannel(0, True)
-ps.pushChannel(0, 5)
-ps.enableChannel(1, True)
-ps.pushChannel(1, -5)
-
+colorimeter_functions.set_powersupply(ps)
 
 # Configure Analog Inputs
 
@@ -49,38 +43,35 @@ digital.push(digital_buffer)
 fig, (ax1, ax2) = plt.subplots(nrows=2)
 fig.set_figheight(6)
 fig.set_figwidth(6)
-# Where the magic happens
 
+# Where the magic happens
 while True:
     # Get data from M2K
-
     ref_data = adc.getSamples(pow(2, 10))[0]
     measured_data = adc.getSamples(pow(2, 10))[1]
 
-    # Calculate FFT and Light Absorbance
+    # Compute FFT
     ref_freq, ref_data_fft, ref_length = colorimeter_functions.compute_fft(ref_data)
     freq, measured_data_fft, length = colorimeter_functions.compute_fft(measured_data)
+    # Compute Light Absorbance
     red_abs, green_abs, blue_abs = colorimeter_functions.light_absorbance(
         measured_data_fft, ref_data_fft, freq, length)
 
-    # plot FFT and absorbance
+    # Plot FFT and absorbance
     ax1.clear()
-    ax1.clear()
+    ax2.clear()
     ax1.set_title("FFT Plot")
     ax2.set_title("Absorbance Plot")
+    ax2.set_ylim(0, 100)
     ax1.plot(freq[length // 2:], 2.0 / length * np.abs(ref_data_fft[length // 2:]))
     ax1.plot(freq[length // 2:], 2.0 / length * np.abs(measured_data_fft[length // 2:]))
+    absorbance = [red_abs, green_abs, blue_abs]
+    # Configure bar graph colors
     bar_colors = ['tab:red', 'tab:green', 'tab:blue']
     colors = ['red', 'green', 'blue']
-    absorbance = [red_abs, green_abs, blue_abs]
     ax2.bar(colors, absorbance, color=bar_colors)
-    ax2.set_ylim(0, 100)
     plt.show(block=False)
-    plt.pause(5)
-    if KeyboardInterrupt:
+    plt.pause(1)
+    # Exit loop and close M2K Context
+    if not plt.fignum_exists(1):
         libm2k.contextClose(ctx)
-        break
-
-
-
-
