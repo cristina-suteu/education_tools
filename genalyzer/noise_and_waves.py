@@ -1,4 +1,8 @@
-import genalyzer
+# Shout out to the OG noise and waves python script
+# https://github.com/analogdevicesinc/education_tools/blob/master/m2k/python/precision_adc_tutorial/make_noise_and_waves.py
+# Let's make some noise and waves
+# Let's do a Fourier analysis of our noise and waves
+
 import genalyzer_advanced as gn
 import numpy as np
 import matplotlib.pyplot as pl
@@ -37,15 +41,22 @@ if gn.Window.NO_WINDOW == window:
     ssb_fund = 0
     ssb_rest = 0
 
-# generate and add waveforms
+# make waves
 awf1 = gn.cos(npts, fs, ampl[0], first_tone_freq, phase, td, tj)
 awf2 = gn.cos(npts, fs, ampl[1], second_tone_freq, phase, td, tj)
 awf = awf1 + awf2
-pl.plot(awf[:10000])
-#pl.show()
 
+# make some noise
+mean = 0
+std = 0.1
+noise = gn.gaussian(len(awf), mean, std)
+
+# noisy waveform
+nwf = awf + noise
 # quantize waveform
 qwf = gn.quantize(np.array(awf), fsr, qres, qnoise, code_fmt)
+
+
 # compute FFT
 fft_cplx = gn.rfft(np.array(qwf), qres, navg, nfft, window, code_fmt, rfft_scale)
 # compute frequency axis
@@ -84,10 +95,9 @@ fftax = pl.subplot2grid((1, 1), (0, 0), rowspan=2, colspan=2)
 pl.title("FFT")
 pl.plot(freq_axis, fft_db)
 pl.grid(True)
-pl.xlim(freq_axis[0], 10)#freq_axis[-1])
+pl.xlim(freq_axis[0], 10)  # freq_axis[-1])
 pl.ylim(-140.0, 20.0)
 annots = gn.fa_annotations(fft_results)
-
 for x, y, label in annots["labels"]:
     pl.annotate(label, xy=(x, y), ha='center', va='bottom')
 for box in annots["tone_boxes"]:
@@ -96,3 +106,4 @@ for box in annots["tone_boxes"]:
 
 pl.tight_layout()
 pl.show()
+
