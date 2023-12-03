@@ -47,28 +47,30 @@ fig.set_figwidth(6)
 # Set-up FFT Plot
 ax1.set_title("FFT Plot")
 ax1.set_ylim([0, 0.2])
-x = np.zeros(512)
-line1, = ax1.plot(x)
-line2, = ax1.plot(x)
 
-# Set-up absorbance plot
-ax2.set_title("Absorbance Plot")
+x = np.zeros(2048)
+line1, = ax1.plot(x, label="Reference Data")
+line2, = ax1.plot(x, label="Sample Data")
+ax1.legend()
+# Set-up transmittance plot
+ax2.set_title("transmittance Plot")
 ax2.set_ylim(0, 100)
 bar_colors = ['tab:red', 'tab:green', 'tab:blue']
 colors = ['red', 'green', 'blue']
-absorbance = [0, 0, 0]
-bars = ax2.bar(colors, absorbance, color=bar_colors)
+transmittance = [0, 0, 0]
+bars = ax2.bar(colors, transmittance, color=bar_colors)
 
 # Where the magic happens
 while True:
     # Get data from M2K
-    ref_data = adc.getSamples(pow(2, 10))[0]
-    measured_data = adc.getSamples(pow(2, 10))[1]
+    data = adc.getSamples(pow(2, 12))
+    ref_data = data[0]
+    measured_data = data[1]
 
     # Compute FFT
     # The compute_fft method defined will return only the positive side of the spectrum
-    ref_freq, ref_data_fft, ref_length = colorimeter_functions.compute_fft(ref_data)
-    freq, measured_data_fft, length = colorimeter_functions.compute_fft(measured_data)
+    ref_data_fft, ref_length = colorimeter_functions.compute_fft(ref_data)
+    measured_data_fft, length = colorimeter_functions.compute_fft(measured_data)
 
     # Examine FFT plot and enter bin numbers for each color
     # Index of DC is 0
@@ -78,21 +80,25 @@ while True:
     green_bins = 1
     blue_bins = 1
 
-    # Compute Light Absorbance
-    red_abs, green_abs, blue_abs = colorimeter_functions.light_absorbance(red_bins, green_bins, blue_bins,
+    # Compute Light transmittance
+    red_tr, green_tr, blue_tr = colorimeter_functions.light_transmittance(red_bins, green_bins, blue_bins,
                                                                           measured_data_fft, ref_data_fft, length)
-    absorbance = [red_abs, green_abs, blue_abs]
+    transmittance = [red_tr, green_tr, blue_tr]
     # Plot FFT
     data_ref = 2.0 / length * np.abs(ref_data_fft)
     data_sample = 2.0 / length * np.abs(measured_data_fft)
     line1.set_ydata(data_ref)
     line2.set_ydata(data_sample)
 
-    # Plot Light Absorbance
+    # Plot Light transmittance
     bars.remove()
-    bars = ax2.bar(colors, absorbance, color=bar_colors)
+    bars = ax2.bar(colors, transmittance, color=bar_colors)
     plt.show(block=False)
-    plt.pause(1)
+    plt.pause(5)
+
+    print("Red Light Transmittance ----- " + str(red_tr) + " \n")
+    print("Green Light Transmittance ----- " + str(green_tr) + " \n")
+    print("Blue Light Transmittance ----- " + str(blue_tr) + " \n")
 
     # Purple Detector
     # Your Code Here
