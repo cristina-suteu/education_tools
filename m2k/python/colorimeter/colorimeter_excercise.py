@@ -72,10 +72,11 @@ while True:
 
     # Examine FFT plot and enter bin numbers for each color
     # Index of DC is 0
+    # Replace 1s with actual bin numbers for each color
     # Hint: to create a list of integer numbers from m to n use range(m, n)
-    red_bins = range(49, 54)
-    green_bins = range(59, 64)
-    blue_bins = range(69, 74)
+    red_bins = 1
+    green_bins = 1
+    blue_bins = 1
 
     # Compute Light Absorbance
     red_abs, green_abs, blue_abs = colorimeter_functions.light_absorbance(red_bins, green_bins, blue_bins,
@@ -95,10 +96,6 @@ while True:
 
     # Purple Detector
     # Your Code Here
-    if blue_abs > 20 and red_abs > 20:
-        print("PURPLE")
-    else:
-        print("NOT PURPLE")
 
     # Exit loop and close M2K Context
     if not plt.fignum_exists(1):

@@ -4,7 +4,6 @@ import numpy as np
 
 max_buffer_size = 500000
 
-
 pg_available_sample_rates = [1000, 10000, 100000, 1000000, 10000000, 100000000]
 pg_max_rate = pg_available_sample_rates[-1]  # last sample rate = max rate
 pg_channels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
@@ -92,7 +91,6 @@ def lcm(x, y, z):
 
 
 def extend_buffer(buf, desired_length):
-
     times = int(desired_length / len(buf))
     aux = copy.deepcopy(buf)
 
@@ -155,32 +153,57 @@ def compute_fft(data):
     data_fft = np.fft.fftshift(data_fft)
     freq = np.fft.fftshift(freq)
     length = len(balanced_signal)
+    # return only positive half of the spectrum
+    data_fft = data_fft[length // 2:]
+
     return freq, data_fft, length
 
 
-def light_absorbance(measured_data_fft, ref_data_fft, freq, length):
-
-    # Identify which FFT bins correspond to the frequencies used to drive the LED
+def light_absorbance(red_bins, green_bins, blue_bins, measured_data_fft, ref_data_fft, length):
+    # Given the selected bins for Red , Green , Blue --> compute light absorbance
     # Compute Sample_Magnitude and Reference_Magnitude for each color
 
-    red_bins = np.where((freq <= red_freq+10) & (freq >= red_freq-10))
     red_mag = (2.0 / length * np.abs(measured_data_fft[red_bins]))
     red_ref = (2.0 / length * np.abs(ref_data_fft[red_bins]))
 
-    blue_bins = np.where((freq <= blue_freq + 10) & (freq >= blue_freq - 10))
+    green_mag = (2.0 / length * np.abs(measured_data_fft[green_bins]))
+    green_ref = (2.0 / length * np.abs(ref_data_fft[green_bins]))
+
     blue_mag = (2.0 / length * np.abs(measured_data_fft[blue_bins]))
     blue_ref = (2.0 / length * np.abs(ref_data_fft[blue_bins]))
+
+    # Calculate Light Absorbance : Sample_Magnitude divided by Reference_Magnitude
+    red_abs = np.average(red_mag) / np.average(red_ref) * 100
+
+    green_abs = np.average(green_mag) / np.average(green_ref) * 100
+
+    blue_abs = np.average(blue_mag) / np.average(blue_ref) * 100
+
+    return red_abs, green_abs, blue_abs
+
+
+def another_path_to_light_absorbance(measured_data_fft, ref_data_fft, freq, length):
+    # Instead of picking the bins from the FFT, they can be determined programmatically (see commented section below)
+    # In this, case the frequency vector is used, to search for frequencies +/- 10 Hz around the frequency for the
+    # signals driving each light source.
+    red_bins = np.where((freq <= red_freq + 10) & (freq >= red_freq - 10))
+    red_mag = (2.0 / length * np.abs(measured_data_fft[red_bins]))
+    red_ref = (2.0 / length * np.abs(ref_data_fft[red_bins]))
 
     green_bins = np.where((freq <= green_freq + 10) & (freq >= green_freq - 10))
     green_mag = (2.0 / length * np.abs(measured_data_fft[green_bins]))
     green_ref = (2.0 / length * np.abs(ref_data_fft[green_bins]))
 
+    blue_bins = np.where((freq <= blue_freq + 10) & (freq >= blue_freq - 10))
+    blue_mag = (2.0 / length * np.abs(measured_data_fft[blue_bins]))
+    blue_ref = (2.0 / length * np.abs(ref_data_fft[blue_bins]))
+
     # Calculate Light Absorbance : Sample_Magnitude divided by Reference_Magnitude
     red_abs = np.average(red_mag) / np.average(red_ref) * 100
 
-    blue_abs = np.average(blue_mag) / np.average(blue_ref) * 100
-
     green_abs = np.average(green_mag) / np.average(green_ref) * 100
+
+    blue_abs = np.average(blue_mag) / np.average(blue_ref) * 100
 
     return red_abs, green_abs, blue_abs
 
@@ -192,4 +215,3 @@ def set_powersupply(ps):
     ps.pushChannel(0, 5)
     ps.enableChannel(1, True)
     ps.pushChannel(1, -5)
-
