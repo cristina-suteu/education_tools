@@ -4,32 +4,30 @@ import matplotlib.pyplot as pl
 from matplotlib.patches import Rectangle as MPRect
 
 # Configuration Params
-navg = 2  # no. of fft averages
+navg = 2  # No. of fft averages
 nfft = 1024 * 256  # FFT order
-# get number of points
+# Get number of points
 npts = navg * nfft
-fs = 1000  # sampling frequency in Hz
+fs = 1000  # Sampling frequency in Hz
 
-phase = 0.0  # tone phase
+phase = 0.0  # Tone phase
 td = 0.0
 tj = 0.0
-qres = 16  # quantizer resolution
-qnoise_dbfs = -140.0  # quantizer noise
+qres = 16  # Quantizer resolution
+qnoise_dbfs = -140.0  # Quantizer noise
 code_fmt = gn.CodeFormat.TWOS_COMPLEMENT  # ADC codes format
-rfft_scale = gn.RfftScale.DBFS_SIN  # fft scale
-window = gn.Window.BLACKMAN_HARRIS  # fft window
+rfft_scale = gn.RfftScale.DBFS_SIN  # FFT scale
+window = gn.Window.NO_WINDOW  # FFT window
 
-fsr = 2.0  # full-scale range
+fsr = 2.0  # Full-scale range
 fund_freq = 1.0  # Hz
 
-# harm_dbfs = [3.0]
-# Uncomment this line to add more harmonics
-harm_dbfs = [-3.0, -20.0, -40.0, -60.0]  # tone amplitude in dbFS
-
+# Replace -200.0 with greater values to add harmonics
+harm_dbfs = [-3.0, -200.0, -200.0, -200.0]
 
 noise_freqs = [1.5, 2.5, 3.5, 4.5]
-noise_dbfs = [-75, -80, -85, -90]
-
+# Replace -200.0 with greater values to add noise tones
+noise_dbfs = [-200.0, -200.0, -200.0, -200.0]
 # Calculate amplitudes from dBfs
 harm_ampl = []
 for x in range(len(harm_dbfs)):
@@ -37,6 +35,14 @@ for x in range(len(harm_dbfs)):
 noise_ampl = []
 for x in range(len(noise_dbfs)):
     noise_ampl.append((fsr / 2) * 10 ** (noise_dbfs[x] / 20))
+
+ssb_fund = 4  # Single side bin fundamental
+ssb_rest = 5
+# If we are not windowing then choose the closest coherent bin for fundamental
+if gn.Window.NO_WINDOW == window:
+    fund_freq = gn.coherent(nfft, fs, fund_freq)
+    ssb_fund = 0
+    ssb_rest = 0
 
 # Now build up the signal from the fundamental, harmonics, and noise tones
 awf = np.zeros(npts)
@@ -47,7 +53,6 @@ for harmonic in range(len(harm_dbfs)):
 
     awf += gn.cos(npts, fs, harm_ampl[harmonic], freq, phase, td, tj)
 
-# Maybe comment this and have FAEs uncomment to add noise?
 for tone in range(len(noise_freqs)):
     freq = noise_freqs[tone]
     if gn.Window.NO_WINDOW == window:
@@ -55,29 +60,22 @@ for tone in range(len(noise_freqs)):
     print("Noise Frequency: ", freq)
     awf += gn.cos(npts, fs, noise_ampl[tone], freq, phase, td, tj)
 
-# get quantizer noise in Volts
+# Get quantizer noise in Volts
 qnoise = 10 ** (qnoise_dbfs / 20)
 
-ssb_fund = 4  # single side bin fundamental
-ssb_rest = 5
 
-# If we are not windowing then choose the closest coherent bin for fundamental
-# Mark, you should check this out, with this logic the noise overlaps with the fundamental
-if gn.Window.NO_WINDOW == window:
-    freq = gn.coherent(nfft, fs, fund_freq)
-    ssb_fund = 0
-    ssb_rest = 0
-
-# quantize waveform
+# Quantize waveform
 qwf = gn.quantize(np.array(awf), fsr, qres, qnoise, code_fmt)
 
+# Plot analog waveform
 pl.figure(1)
 pl.plot(awf[:10000])
-# compute FFT
+
+# Compute FFT
 fft_cplx = gn.rfft(np.array(qwf), qres, navg, nfft, window, code_fmt, rfft_scale)
-# compute frequency axis
+# Compute frequency axis
 freq_axis = gn.freq_axis(nfft, gn.FreqAxisType.REAL, fs)
-# compute FFT in db
+# Compute FFT in db
 fft_db = gn.db(fft_cplx)
 
 # Fourier analysis configuration
@@ -106,8 +104,7 @@ print("\nFrequency, Phase and Amplitude for Harmonics:\n")
 for k in ['A:freq', 'A:mag_dbfs', 'A:phase',
           '2A:freq', '2A:mag_dbfs', '2A:phase',
           '3A:freq', '3A:mag_dbfs', '3A:phase',
-          '4A:freq', '4A:mag_dbfs', '4A:phase',
-          'wo:freq','wo:mag_dbfs', 'wo:phase']:
+          '4A:freq', '4A:mag_dbfs', '4A:phase']:
     print("{:20s}{:20.6f}".format(k, fft_results[k]))
 print("\nFrequency, Phase and Amplitude for Noise:\n")
 for k in ['wo:freq','wo:mag_dbfs', 'wo:phase']:
@@ -116,7 +113,7 @@ print("\nSNR and THD \n")
 for k in ['fsnr', 'thd']:
     print("{:20s}{:20.6f}".format(k, fft_results[k]))
 
-# plot FFT
+# Plot FFT
 pl.figure(2)
 fftax = pl.subplot2grid((1, 1), (0, 0), rowspan=2, colspan=2)
 pl.title("FFT")
